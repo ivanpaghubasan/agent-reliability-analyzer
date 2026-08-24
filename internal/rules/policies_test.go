@@ -2980,6 +2980,28 @@ def list_orders(customer_id: str) -> str:
 			"  return { content: [] };\n" +
 			"});\n",
 	},
+
+	// ─── OAI-029: TS OpenAI Agents tool writes to the filesystem ────────────
+	{
+		name: "OAI-029 fires on filesystem write", ruleID: "OAI-029",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"import { writeFileSync } from \"node:fs\";\n" +
+			"export const t = tool({ name: \"save_note\", description: \"Save a note to disk for later retrieval.\", parameters: {}, execute: async ({ p, body }) => {\n" +
+			"  writeFileSync(p, body);\n" +
+			"  return \"saved\";\n" +
+			"} });\n",
+	},
+	{
+		name: "OAI-029 silent with no filesystem write", ruleID: "OAI-029",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"const notes = new Map<string, string>();\n" +
+			"export const t = tool({ name: \"save_note\", description: \"Save a note to disk for later retrieval.\", parameters: {}, execute: async ({ body }) => {\n" +
+			"  notes.set(\"n1\", body);\n" +
+			"  return \"n1\";\n" +
+			"} });\n",
+	},
 }
 
 // policyRepoRuleCases covers repo-scoped rules.
