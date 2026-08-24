@@ -2954,6 +2954,32 @@ def list_orders(customer_id: str) -> str:
 		src: "import { tool } from \"@langchain/core/tools\";\n" +
 			"export const t = tool(async () => \"x\", { name: \"list_orders\", schema: {} });\n",
 	},
+
+	// ─── MCP-029: TS MCP tool writes to the filesystem ──────────────────────
+	// Coarse has_write_call signal, mirroring CSDK-012 until TS path
+	// normalization analysis exists.
+	{
+		name: "MCP-029 fires on filesystem write", ruleID: "MCP-029",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"import { writeFileSync } from \"node:fs\";\n" +
+			"const s = new McpServer({ name: \"notes\", version: \"1.0.0\" });\n" +
+			"s.tool(\"save_note\", \"Save a note to disk for later retrieval.\", {}, async ({ p, body }) => {\n" +
+			"  writeFileSync(p, body);\n" +
+			"  return { content: [] };\n" +
+			"});\n",
+	},
+	{
+		name: "MCP-029 silent with no filesystem write", ruleID: "MCP-029",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const notes = new Map<string, string>();\n" +
+			"const s = new McpServer({ name: \"notes\", version: \"1.0.0\" });\n" +
+			"s.tool(\"save_note\", \"Save a note to disk for later retrieval.\", {}, async ({ body }) => {\n" +
+			"  notes.set(\"n1\", body);\n" +
+			"  return { content: [] };\n" +
+			"});\n",
+	},
 }
 
 // policyRepoRuleCases covers repo-scoped rules.
