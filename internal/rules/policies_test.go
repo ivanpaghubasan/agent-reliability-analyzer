@@ -2716,11 +2716,11 @@ def lookup_order(order_id: str) -> str:
 			"});\n",
 	},
 
-	// ─── ADK-114: TS ADK FunctionTool HTTP call without a timeout ───────────
+	// ─── ADK-017: TS ADK FunctionTool HTTP call without a timeout ───────────
 	// adk-js uses the options-object form (new FunctionTool({ ..., execute })),
 	// not the Python FunctionTool(fn) wrapper shape.
 	{
-		name: "ADK-114 fires on TS fetch with no AbortSignal", ruleID: "ADK-114",
+		name: "ADK-017 fires on TS fetch with no AbortSignal", ruleID: "ADK-017",
 		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: true,
 		src: "import { FunctionTool } from \"@google/adk\";\n" +
 			"const t = new FunctionTool({ name: \"fetch_report\", description: \"Fetch a report.\", parameters: {}, execute: async () => {\n" +
@@ -2729,7 +2729,7 @@ def lookup_order(order_id: str) -> str:
 			"} });\n",
 	},
 	{
-		name: "ADK-114 silent when AbortSignal present", ruleID: "ADK-114",
+		name: "ADK-017 silent when AbortSignal present", ruleID: "ADK-017",
 		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: false,
 		src: "import { FunctionTool } from \"@google/adk\";\n" +
 			"const t = new FunctionTool({ name: \"fetch_report\", description: \"Fetch a report.\", parameters: {}, execute: async () => {\n" +
@@ -2738,7 +2738,7 @@ def lookup_order(order_id: str) -> str:
 			"} });\n",
 	},
 	{
-		name: "ADK-114 fires when fetch options omit any timeout", ruleID: "ADK-114",
+		name: "ADK-017 fires when fetch options omit any timeout", ruleID: "ADK-017",
 		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: true,
 		src: "import { FunctionTool } from \"@google/adk\";\n" +
 			"const t = new FunctionTool({ name: \"fetch_report\", description: \"Fetch a report.\", parameters: {}, execute: async () => {\n" +
@@ -2797,27 +2797,27 @@ def list_orders(customer_id: str) -> str:
     return customer_id
 `, wantFires: false},
 
-	{name: "ADK-115 fires on placeholder description", ruleID: "ADK-115", kind: models.KindADKFunctionTool, src: `
+	{name: "ADK-018 fires on placeholder description", ruleID: "ADK-018", kind: models.KindADKFunctionTool, src: `
 def lookup_order(order_id: str) -> str:
     """TODO: describe this tool."""
     return order_id
 `, wantFires: true},
-	{name: "ADK-115 silent on a real description", ruleID: "ADK-115", kind: models.KindADKFunctionTool, src: `
+	{name: "ADK-018 silent on a real description", ruleID: "ADK-018", kind: models.KindADKFunctionTool, src: `
 def lookup_order(order_id: str) -> str:
     """Look up a single order by its identifier and return its current status."""
     return order_id
 `, wantFires: false},
-	{name: "ADK-116 fires on a too-short description", ruleID: "ADK-116", kind: models.KindADKFunctionTool, src: `
+	{name: "ADK-019 fires on a too-short description", ruleID: "ADK-019", kind: models.KindADKFunctionTool, src: `
 def list_orders(customer_id: str) -> str:
     """Gets data."""
     return customer_id
 `, wantFires: true},
-	{name: "ADK-116 silent on a full description", ruleID: "ADK-116", kind: models.KindADKFunctionTool, src: `
+	{name: "ADK-019 silent on a full description", ruleID: "ADK-019", kind: models.KindADKFunctionTool, src: `
 def list_orders(customer_id: str) -> str:
     """List every order belonging to one customer, most recent first."""
     return customer_id
 `, wantFires: false},
-	{name: "ADK-116 silent when the docstring is absent (ADK-001's case)", ruleID: "ADK-116", kind: models.KindADKFunctionTool, src: `
+	{name: "ADK-019 silent when the docstring is absent (ADK-001's case)", ruleID: "ADK-019", kind: models.KindADKFunctionTool, src: `
 def list_orders(customer_id: str) -> str:
     return customer_id
 `, wantFires: false},
@@ -3003,9 +3003,9 @@ def list_orders(customer_id: str) -> str:
 			"} });\n",
 	},
 
-	// ─── ADK-117: TS ADK FunctionTool writes to the filesystem ──────────────
+	// ─── ADK-014: TS ADK FunctionTool writes to the filesystem ──────────────
 	{
-		name: "ADK-117 fires on filesystem write", ruleID: "ADK-117",
+		name: "ADK-014 fires on filesystem write", ruleID: "ADK-014",
 		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: true,
 		src: "import { FunctionTool } from \"@google/adk\";\n" +
 			"import { writeFileSync } from \"node:fs\";\n" +
@@ -3015,7 +3015,7 @@ def list_orders(customer_id: str) -> str:
 			"} });\n",
 	},
 	{
-		name: "ADK-117 silent with no filesystem write", ruleID: "ADK-117",
+		name: "ADK-014 silent with no filesystem write", ruleID: "ADK-014",
 		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: false,
 		src: "import { FunctionTool } from \"@google/adk\";\n" +
 			"const notes = new Map<string, string>();\n" +
