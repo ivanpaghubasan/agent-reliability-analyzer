@@ -3728,10 +3728,25 @@ var policyAgentRuleCases = []policyAgentCase{
 			HostedToolRefs: []models.HostedToolRef{{Class: "RequestsPostTool"}},
 		},
 		models.RepoInventory{}, true},
+	{"LC-103 fires on a StateGraph wiring RequestsPostTool", "LC-103",
+		models.AgentDef{
+			SDK: models.SDKLangChain, Class: "StateGraph", Language: models.LanguagePython,
+			HostedToolRefs: []models.HostedToolRef{{Class: "RequestsPostTool"}},
+		},
+		models.RepoInventory{}, true},
+	{"LC-103 silent without a hosted tool", "LC-103",
+		models.AgentDef{SDK: models.SDKLangChain, Class: "ReactAgent", Language: models.LanguagePython},
+		models.RepoInventory{}, false},
 	{"LC-103 silent on a benign hosted tool", "LC-103",
 		models.AgentDef{
 			SDK: models.SDKLangChain, Class: "ReactAgent", Language: models.LanguagePython,
 			HostedToolRefs: []models.HostedToolRef{{Class: "TavilySearchResults"}},
+		},
+		models.RepoInventory{}, false},
+	{"LC-103 silent when the hosted tool is PythonREPLTool, not a Requests class", "LC-103",
+		models.AgentDef{
+			SDK: models.SDKLangChain, Class: "ReactAgent", Language: models.LanguagePython,
+			HostedToolRefs: []models.HostedToolRef{{Class: "PythonREPLTool"}},
 		},
 		models.RepoInventory{}, false},
 
