@@ -354,7 +354,6 @@ rules:
 #       resolvable to it by variable name, and none of those calls set
 #       usage_limits. Same silence rule as agent_run_call_max_turns_missing.
 #
-<<<<<<< HEAD
 #   agent_mcp_server_kwarg_missing: {classes: [MCPServerStdio, ...], kwarg: tool_filter}
 #       Returns true if the agent wires at least one MCP server of any class in
 #       `classes` whose `kwarg` is absent OR present with literal None. `kwarg`
@@ -369,7 +368,7 @@ rules:
 #       list already proves the agent uses it, and with multiple wired servers
 #       negating a presence check would go silent as soon as ANY one sets the
 #       kwarg, masking the others that don't.
-=======
+#
 #   agent_file_url_force_download: bool
 #       Pydantic AI only. Returns true if discovery stamped
 #       AgentDef.FileURLForceDownload as "True" or "allow-local" — a
@@ -377,7 +376,6 @@ rules:
 #       in the agent's file set force_download to a host-side download
 #       (True) or a private-IP-allowing download ('allow-local'). Silent
 #       when the field is empty (kwarg absent or False).
->>>>>>> 0810342 (feat(pydantic): detect FileUrl and WebFetchTool force_download (PYD-104))
 #
 #
 # ━━━ SUBAGENT-SCOPE PREDICATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
