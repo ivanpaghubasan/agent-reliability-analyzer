@@ -2233,6 +2233,861 @@ def get_note_meta(note_id: str) -> dict:
 			"  return \"n1\";\n" +
 			"}, { name: \"save_note\", description: \"Save a note.\", schema: {} });\n",
 	},
+
+	// ─── CREW-007: CrewAI tool network call without a timeout ───────────────
+	// Same call_without_kwarg callee list as PYD-006.
+	{name: "CREW-007 fires on network call without timeout", ruleID: "CREW-007", kind: models.KindCrewAITool, src: `
+def fetch_report(url: str) -> str:
+    """Fetch a report."""
+    import requests
+    return requests.get(url).text
+`, wantFires: true},
+	{name: "CREW-007 silent with timeout", ruleID: "CREW-007", kind: models.KindCrewAITool, src: `
+def fetch_report(url: str) -> str:
+    """Fetch a report."""
+    import requests
+    return requests.get(url, timeout=10).text
+`, wantFires: false},
+
+	// ─── LC-008: LangChain tool raises with no structured error contract ────
+	{name: "LC-008 fires on uncaught raise", ruleID: "LC-008", kind: models.KindLangChainTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    if not order_id:
+        raise ValueError("order_id is required")
+    return order_id
+`, wantFires: true},
+	{name: "LC-008 silent when the failure is caught", ruleID: "LC-008", kind: models.KindLangChainTool, src: `
+def lookup_order(order_id: str) -> dict:
+    """Look up an order."""
+    try:
+        if not order_id:
+            raise ValueError("order_id is required")
+        return {"order_id": order_id}
+    except ValueError as exc:
+        return {"error": str(exc), "retryable": False}
+`, wantFires: false},
+
+	// ─── CREW-008: CrewAI tool raises with no structured error contract ─────
+	{name: "CREW-008 fires on uncaught raise", ruleID: "CREW-008", kind: models.KindCrewAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    if not order_id:
+        raise ValueError("order_id is required")
+    return order_id
+`, wantFires: true},
+	{name: "CREW-008 silent when the failure is caught", ruleID: "CREW-008", kind: models.KindCrewAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    try:
+        if not order_id:
+            raise ValueError("order_id is required")
+        return order_id
+    except ValueError:
+        return "error: order_id was empty; supply the customer's order number"
+`, wantFires: false},
+
+	// ─── AG2-013: AutoGen tool raises with no structured error contract ─────
+	{name: "AG2-013 fires on uncaught raise", ruleID: "AG2-013", kind: models.KindAutoGenTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    if not order_id:
+        raise ValueError("order_id is required")
+    return order_id
+`, wantFires: true},
+	{name: "AG2-013 silent when the failure is caught", ruleID: "AG2-013", kind: models.KindAutoGenTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    try:
+        if not order_id:
+            raise ValueError("order_id is required")
+        return order_id
+    except ValueError:
+        return "error: order_id was empty; supply the customer's order number"
+`, wantFires: false},
+
+	// ─── PYD-009: Pydantic AI path param reaching I/O unnormalized ──────────
+	// call_uses_unnormalized_path_param is per-param, so the third case pins
+	// that a non-pathish param does not drag the rule in.
+	{name: "PYD-009 fires on path param in open()", ruleID: "PYD-009", kind: models.KindPydanticAITool, src: `
+def read_note(note_path: str) -> str:
+    """Read a note."""
+    with open(note_path, "r") as f:
+        return f.read()
+`, wantFires: true},
+	{name: "PYD-009 silent with .resolve()", ruleID: "PYD-009", kind: models.KindPydanticAITool, src: `
+from pathlib import Path
+def read_note(note_path: str) -> str:
+    """Read a note."""
+    p = Path(note_path).resolve()
+    with open(p, "r") as f:
+        return f.read()
+`, wantFires: false},
+	{name: "PYD-009 silent on non-pathish param", ruleID: "PYD-009", kind: models.KindPydanticAITool, src: `
+def get_note_meta(note_id: str) -> dict:
+    """Get note metadata."""
+    return {"id": note_id}
+`, wantFires: false},
+
+	// ─── CREW-009: CrewAI path param reaching I/O unnormalized ──────────────
+	{name: "CREW-009 fires on path param in open()", ruleID: "CREW-009", kind: models.KindCrewAITool, src: `
+def read_note(note_path: str) -> str:
+    """Read a note."""
+    with open(note_path, "r") as f:
+        return f.read()
+`, wantFires: true},
+	{name: "CREW-009 silent with .resolve()", ruleID: "CREW-009", kind: models.KindCrewAITool, src: `
+from pathlib import Path
+def read_note(note_path: str) -> str:
+    """Read a note."""
+    p = Path(note_path).resolve()
+    with open(p, "r") as f:
+        return f.read()
+`, wantFires: false},
+	{name: "CREW-009 silent on non-pathish param", ruleID: "CREW-009", kind: models.KindCrewAITool, src: `
+def get_note_meta(note_id: str) -> dict:
+    """Get note metadata."""
+    return {"id": note_id}
+`, wantFires: false},
+
+	// ─── AG2-014: AutoGen path param reaching I/O unnormalized ──────────────
+	{name: "AG2-014 fires on path param in open()", ruleID: "AG2-014", kind: models.KindAutoGenTool, src: `
+def read_note(note_path: str) -> str:
+    """Read a note."""
+    with open(note_path, "r") as f:
+        return f.read()
+`, wantFires: true},
+	{name: "AG2-014 silent with .resolve()", ruleID: "AG2-014", kind: models.KindAutoGenTool, src: `
+from pathlib import Path
+def read_note(note_path: str) -> str:
+    """Read a note."""
+    p = Path(note_path).resolve()
+    with open(p, "r") as f:
+        return f.read()
+`, wantFires: false},
+	{name: "AG2-014 silent on non-pathish param", ruleID: "AG2-014", kind: models.KindAutoGenTool, src: `
+def get_note_meta(note_id: str) -> dict:
+    """Get note metadata."""
+    return {"id": note_id}
+`, wantFires: false},
+
+	// ─── LC-017: mutating LangChain tool with no idempotency key ────────────
+	// Same name_has_prefix + param_name_matches shape as MCP-007. Third case
+	// pins that a non-mutating name is not swept in by the missing key alone.
+	{name: "LC-017 fires on mutating tool without key", ruleID: "LC-017", kind: models.KindLangChainTool, src: `
+def refund_payment(charge_id: str, amount_cents: int) -> dict:
+    """Refund a charge."""
+    return {"ok": True}
+`, wantFires: true},
+	{name: "LC-017 silent with idempotency key", ruleID: "LC-017", kind: models.KindLangChainTool, src: `
+def refund_payment(charge_id: str, amount_cents: int, idempotency_key: str) -> dict:
+    """Refund a charge."""
+    return {"ok": True}
+`, wantFires: false},
+	{name: "LC-017 silent on a read-only tool name", ruleID: "LC-017", kind: models.KindLangChainTool, src: `
+def get_payment(charge_id: str) -> dict:
+    """Get a charge."""
+    return {"ok": True}
+`, wantFires: false},
+
+	// ─── PYD-010 / PYD-011: Pydantic AI description quality ─────────────────
+	// PYD-010 is has_description_text (placeholder markers); PYD-011 pairs
+	// description_length_lt with has_docstring so an ABSENT docstring stays
+	// PYD-001's finding rather than double-reporting here.
+	{name: "PYD-010 fires on placeholder description", ruleID: "PYD-010", kind: models.KindPydanticAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "PYD-010 silent on a real description", ruleID: "PYD-010", kind: models.KindPydanticAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "PYD-011 fires on a too-short description", ruleID: "PYD-011", kind: models.KindPydanticAITool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "PYD-011 silent on a full description", ruleID: "PYD-011", kind: models.KindPydanticAITool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "PYD-011 silent when the docstring is absent (PYD-001's case)", ruleID: "PYD-011", kind: models.KindPydanticAITool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	// ─── LC-018 / LC-019: LangChain description quality ─────────────────────
+	{name: "LC-018 fires on placeholder description", ruleID: "LC-018", kind: models.KindLangChainTool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "LC-018 silent on a real description", ruleID: "LC-018", kind: models.KindLangChainTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "LC-019 fires on a too-short description", ruleID: "LC-019", kind: models.KindLangChainTool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "LC-019 silent on a full description", ruleID: "LC-019", kind: models.KindLangChainTool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "LC-019 silent when the docstring is absent (LC-001's case)", ruleID: "LC-019", kind: models.KindLangChainTool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	// ─── CREW-010 / CREW-011: CrewAI description quality ────────────────────
+	{name: "CREW-010 fires on placeholder description", ruleID: "CREW-010", kind: models.KindCrewAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "CREW-010 silent on a real description", ruleID: "CREW-010", kind: models.KindCrewAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "CREW-011 fires on a too-short description", ruleID: "CREW-011", kind: models.KindCrewAITool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "CREW-011 silent on a full description", ruleID: "CREW-011", kind: models.KindCrewAITool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "CREW-011 silent when the docstring is absent (CREW-001's case)", ruleID: "CREW-011", kind: models.KindCrewAITool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	// ─── AG2-016 / AG2-017: AutoGen description quality ─────────────────────
+	{name: "AG2-016 fires on placeholder description", ruleID: "AG2-016", kind: models.KindAutoGenTool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "AG2-016 silent on a real description", ruleID: "AG2-016", kind: models.KindAutoGenTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "AG2-017 fires on a too-short description", ruleID: "AG2-017", kind: models.KindAutoGenTool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "AG2-017 silent on a full description", ruleID: "AG2-017", kind: models.KindAutoGenTool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "AG2-017 silent when the docstring is absent (AG2-007's case)", ruleID: "AG2-017", kind: models.KindAutoGenTool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	// ─── VAI-015: Vercel AI tool writes to the filesystem (typescript) ──────
+	// Coarse has_write_call signal, mirroring CSDK-012 until TS path
+	// normalization analysis exists.
+	{
+		name: "VAI-015 fires on filesystem write", ruleID: "VAI-015",
+		kind: models.KindVercelAITool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"ai\";\n" +
+			"import { writeFileSync } from \"node:fs\";\n" +
+			"export const t = tool({ description: \"Save a note to disk for later retrieval.\", inputSchema: {}, execute: async ({ p, body }) => {\n" +
+			"  writeFileSync(p, body);\n" +
+			"  return \"saved\";\n" +
+			"} });\n",
+	},
+	{
+		name: "VAI-015 silent with no filesystem write", ruleID: "VAI-015",
+		kind: models.KindVercelAITool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"ai\";\n" +
+			"const notes = new Map<string, string>();\n" +
+			"export const t = tool({ description: \"Save a note to disk for later retrieval.\", inputSchema: {}, execute: async ({ body }) => {\n" +
+			"  notes.set(\"n1\", body);\n" +
+			"  return \"n1\";\n" +
+			"} });\n",
+	},
+
+	{name: "PYD-012 fires on print() in the tool body", ruleID: "PYD-012", kind: models.KindPydanticAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    print("looking up " + order_id)
+    return order_id
+`, wantFires: true},
+	{name: "PYD-012 silent when logging instead of printing", ruleID: "PYD-012", kind: models.KindPydanticAITool, src: `
+import logging
+logger = logging.getLogger(__name__)
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    logger.info("looking up %s", order_id)
+    return order_id
+`, wantFires: false},
+	{name: "PYD-012 silent on pprint (bare-callee guard)", ruleID: "PYD-012", kind: models.KindPydanticAITool, src: `
+from pprint import pprint
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    pprint({"order_id": order_id})
+    return order_id
+`, wantFires: false},
+
+	{name: "LC-020 fires on print() in the tool body", ruleID: "LC-020", kind: models.KindLangChainTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    print("looking up " + order_id)
+    return order_id
+`, wantFires: true},
+	{name: "LC-020 silent when logging instead of printing", ruleID: "LC-020", kind: models.KindLangChainTool, src: `
+import logging
+logger = logging.getLogger(__name__)
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    logger.info("looking up %s", order_id)
+    return order_id
+`, wantFires: false},
+	{name: "LC-020 silent on pprint (bare-callee guard)", ruleID: "LC-020", kind: models.KindLangChainTool, src: `
+from pprint import pprint
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    pprint({"order_id": order_id})
+    return order_id
+`, wantFires: false},
+
+	{name: "CREW-012 fires on print() in the tool body", ruleID: "CREW-012", kind: models.KindCrewAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    print("looking up " + order_id)
+    return order_id
+`, wantFires: true},
+	{name: "CREW-012 silent when logging instead of printing", ruleID: "CREW-012", kind: models.KindCrewAITool, src: `
+import logging
+logger = logging.getLogger(__name__)
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    logger.info("looking up %s", order_id)
+    return order_id
+`, wantFires: false},
+	{name: "CREW-012 silent on pprint (bare-callee guard)", ruleID: "CREW-012", kind: models.KindCrewAITool, src: `
+from pprint import pprint
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    pprint({"order_id": order_id})
+    return order_id
+`, wantFires: false},
+
+	{name: "AG2-018 fires on print() in the tool body", ruleID: "AG2-018", kind: models.KindAutoGenTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    print("looking up " + order_id)
+    return order_id
+`, wantFires: true},
+	{name: "AG2-018 silent when logging instead of printing", ruleID: "AG2-018", kind: models.KindAutoGenTool, src: `
+import logging
+logger = logging.getLogger(__name__)
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    logger.info("looking up %s", order_id)
+    return order_id
+`, wantFires: false},
+	{name: "AG2-018 silent on pprint (bare-callee guard)", ruleID: "AG2-018", kind: models.KindAutoGenTool, src: `
+from pprint import pprint
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    pprint({"order_id": order_id})
+    return order_id
+`, wantFires: false},
+
+	{name: "MCP-023 fires on print() in the tool body", ruleID: "MCP-023", kind: models.KindMCPTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    print("looking up " + order_id)
+    return order_id
+`, wantFires: true},
+	{name: "MCP-023 silent when logging to stderr instead", ruleID: "MCP-023", kind: models.KindMCPTool, src: `
+import logging
+logger = logging.getLogger(__name__)
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    logger.info("looking up %s", order_id)
+    return order_id
+`, wantFires: false},
+	{name: "MCP-023 silent on pprint (bare-callee guard)", ruleID: "MCP-023", kind: models.KindMCPTool, src: `
+from pprint import pprint
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    pprint({"order_id": order_id})
+    return order_id
+`, wantFires: false},
+
+	{name: "CSDK-019 fires on print() in the tool body", ruleID: "CSDK-019", kind: models.KindClaudeSDKTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    print("looking up " + order_id)
+    return order_id
+`, wantFires: true},
+	{name: "CSDK-019 silent when logging to stderr instead", ruleID: "CSDK-019", kind: models.KindClaudeSDKTool, src: `
+import logging
+logger = logging.getLogger(__name__)
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    logger.info("looking up %s", order_id)
+    return order_id
+`, wantFires: false},
+	{name: "CSDK-019 silent on pprint (bare-callee guard)", ruleID: "CSDK-019", kind: models.KindClaudeSDKTool, src: `
+from pprint import pprint
+def lookup_order(order_id: str) -> str:
+    """Look up an order."""
+    pprint({"order_id": order_id})
+    return order_id
+`, wantFires: false},
+
+	// ─── CSDK-020: TS Claude SDK tool HTTP call without a timeout ───────────
+	// Structural has_http_call_without_timeout, as OAI-016 uses. CSDK-003 is
+	// the Python half; this pack shipped TS rules but no TS timeout rule.
+	{
+		name: "CSDK-020 fires on TS fetch with no AbortSignal", ruleID: "CSDK-020",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"fetch_report\", \"Fetch a report.\", {}, async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\");\n" +
+			"  return { content: [{ type: \"text\", text: await r.text() }] };\n" +
+			"});\n",
+	},
+	{
+		name: "CSDK-020 silent when AbortSignal present", ruleID: "CSDK-020",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"fetch_report\", \"Fetch a report.\", {}, async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\", { signal: AbortSignal.timeout(15000) });\n" +
+			"  return { content: [{ type: \"text\", text: await r.text() }] };\n" +
+			"});\n",
+	},
+	{
+		name: "CSDK-020 fires when fetch options omit any timeout", ruleID: "CSDK-020",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"fetch_report\", \"Fetch a report.\", {}, async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\", { method: \"POST\" });\n" +
+			"  return { content: [{ type: \"text\", text: await r.text() }] };\n" +
+			"});\n",
+	},
+
+	// ─── MCP-024: TS MCP tool HTTP call without a timeout ───────────────────
+	{
+		name: "MCP-024 fires on TS fetch with no AbortSignal", ruleID: "MCP-024",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"fetch_report\", \"Fetch a report.\", {}, async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\");\n" +
+			"  return { content: [{ type: \"text\", text: await r.text() }] };\n" +
+			"});\n",
+	},
+	{
+		name: "MCP-024 silent when AbortSignal present", ruleID: "MCP-024",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"fetch_report\", \"Fetch a report.\", {}, async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\", { signal: AbortSignal.timeout(15000) });\n" +
+			"  return { content: [{ type: \"text\", text: await r.text() }] };\n" +
+			"});\n",
+	},
+	{
+		name: "MCP-024 fires when fetch options omit any timeout", ruleID: "MCP-024",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"fetch_report\", \"Fetch a report.\", {}, async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\", { method: \"POST\" });\n" +
+			"  return { content: [{ type: \"text\", text: await r.text() }] };\n" +
+			"});\n",
+	},
+
+	// ─── ADK-114: TS ADK FunctionTool HTTP call without a timeout ───────────
+	// adk-js uses the options-object form (new FunctionTool({ ..., execute })),
+	// not the Python FunctionTool(fn) wrapper shape.
+	{
+		name: "ADK-114 fires on TS fetch with no AbortSignal", ruleID: "ADK-114",
+		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { FunctionTool } from \"@google/adk\";\n" +
+			"const t = new FunctionTool({ name: \"fetch_report\", description: \"Fetch a report.\", parameters: {}, execute: async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\");\n" +
+			"  return await r.text();\n" +
+			"} });\n",
+	},
+	{
+		name: "ADK-114 silent when AbortSignal present", ruleID: "ADK-114",
+		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { FunctionTool } from \"@google/adk\";\n" +
+			"const t = new FunctionTool({ name: \"fetch_report\", description: \"Fetch a report.\", parameters: {}, execute: async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\", { signal: AbortSignal.timeout(15000) });\n" +
+			"  return await r.text();\n" +
+			"} });\n",
+	},
+	{
+		name: "ADK-114 fires when fetch options omit any timeout", ruleID: "ADK-114",
+		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { FunctionTool } from \"@google/adk\";\n" +
+			"const t = new FunctionTool({ name: \"fetch_report\", description: \"Fetch a report.\", parameters: {}, execute: async () => {\n" +
+			"  const r = await fetch(\"https://reports.internal/x\", { method: \"POST\" });\n" +
+			"  return await r.text();\n" +
+			"} });\n",
+	},
+
+	{name: "OAI-025 fires on placeholder description", ruleID: "OAI-025", kind: models.KindOpenAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "OAI-025 silent on a real description", ruleID: "OAI-025", kind: models.KindOpenAITool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "OAI-026 fires on a too-short description", ruleID: "OAI-026", kind: models.KindOpenAITool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "OAI-026 silent on a full description", ruleID: "OAI-026", kind: models.KindOpenAITool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "OAI-026 silent when the docstring is absent (OAI-001's case)", ruleID: "OAI-026", kind: models.KindOpenAITool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	{name: "MCP-025 fires on placeholder description", ruleID: "MCP-025", kind: models.KindMCPTool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "MCP-025 silent on a real description", ruleID: "MCP-025", kind: models.KindMCPTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "MCP-026 fires on a too-short description", ruleID: "MCP-026", kind: models.KindMCPTool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "MCP-026 silent on a full description", ruleID: "MCP-026", kind: models.KindMCPTool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "MCP-026 silent when the docstring is absent (MCP-001's case)", ruleID: "MCP-026", kind: models.KindMCPTool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	{name: "ADK-115 fires on placeholder description", ruleID: "ADK-115", kind: models.KindADKFunctionTool, src: `
+def lookup_order(order_id: str) -> str:
+    """TODO: describe this tool."""
+    return order_id
+`, wantFires: true},
+	{name: "ADK-115 silent on a real description", ruleID: "ADK-115", kind: models.KindADKFunctionTool, src: `
+def lookup_order(order_id: str) -> str:
+    """Look up a single order by its identifier and return its current status."""
+    return order_id
+`, wantFires: false},
+	{name: "ADK-116 fires on a too-short description", ruleID: "ADK-116", kind: models.KindADKFunctionTool, src: `
+def list_orders(customer_id: str) -> str:
+    """Gets data."""
+    return customer_id
+`, wantFires: true},
+	{name: "ADK-116 silent on a full description", ruleID: "ADK-116", kind: models.KindADKFunctionTool, src: `
+def list_orders(customer_id: str) -> str:
+    """List every order belonging to one customer, most recent first."""
+    return customer_id
+`, wantFires: false},
+	{name: "ADK-116 silent when the docstring is absent (ADK-001's case)", ruleID: "ADK-116", kind: models.KindADKFunctionTool, src: `
+def list_orders(customer_id: str) -> str:
+    return customer_id
+`, wantFires: false},
+
+	// ─── CSDK-021 / CSDK-022: TS Claude SDK description quality ─────────────
+	{
+		name: "CSDK-021 fires on placeholder description", ruleID: "CSDK-021",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"lookup_order\", \"TODO: describe this tool.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "CSDK-021 silent on a real description", ruleID: "CSDK-021",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"lookup_order\", \"Look up one order by its number and return its fulfillment status.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "CSDK-022 fires on a too-short description", ruleID: "CSDK-022",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"list_orders\", \"Gets data.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "CSDK-022 silent on a full description", ruleID: "CSDK-022",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"list_orders\", \"List every order belonging to one customer, most recent first.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "CSDK-022 silent when the description is absent (CSDK-014's case)", ruleID: "CSDK-022",
+		kind: models.KindClaudeSDKTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@anthropic-ai/claude-agent-sdk\";\n" +
+			"export const t = tool(\"list_orders\", \"\", {}, async () => ({ content: [] }));\n",
+	},
+
+	// ─── MCP-027 / MCP-028: TS MCP description quality ──────────────────────
+	{
+		name: "MCP-027 fires on placeholder description", ruleID: "MCP-027",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"lookup_order\", \"TODO: describe this tool.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "MCP-027 silent on a real description", ruleID: "MCP-027",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"lookup_order\", \"Look up one order by its number and return its fulfillment status.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "MCP-028 fires on a too-short description", ruleID: "MCP-028",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"list_orders\", \"Gets data.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "MCP-028 silent on a full description", ruleID: "MCP-028",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"list_orders\", \"List every order belonging to one customer, most recent first.\", {}, async () => ({ content: [] }));\n",
+	},
+	{
+		name: "MCP-028 silent when the description is absent (MCP-011's case)", ruleID: "MCP-028",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const s = new McpServer({ name: \"orders\", version: \"1.0.0\" });\n" +
+			"s.tool(\"list_orders\", \"\", {}, async () => ({ content: [] }));\n",
+	},
+
+	// ─── OAI-027 / OAI-028: TS OpenAI Agents description quality ────────────
+	{
+		name: "OAI-027 fires on placeholder description", ruleID: "OAI-027",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"export const t = tool({ name: \"lookup_order\", description: \"TODO: describe this tool.\", parameters: {}, execute: async () => \"x\" });\n",
+	},
+	{
+		name: "OAI-027 silent on a real description", ruleID: "OAI-027",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"export const t = tool({ name: \"lookup_order\", description: \"Look up one order by its number and return its fulfillment status.\", parameters: {}, execute: async () => \"x\" });\n",
+	},
+	{
+		name: "OAI-028 fires on a too-short description", ruleID: "OAI-028",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"export const t = tool({ name: \"list_orders\", description: \"Gets data.\", parameters: {}, execute: async () => \"x\" });\n",
+	},
+	{
+		name: "OAI-028 silent on a full description", ruleID: "OAI-028",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"export const t = tool({ name: \"list_orders\", description: \"List every order belonging to one customer, most recent first.\", parameters: {}, execute: async () => \"x\" });\n",
+	},
+	{
+		name: "OAI-028 silent when the description is absent (OAI-022's case)", ruleID: "OAI-028",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"export const t = tool({ name: \"list_orders\", parameters: {}, execute: async () => \"x\" });\n",
+	},
+
+	// ─── LC-021 / LC-022: TS LangChain description quality ──────────────────
+	{
+		name: "LC-021 fires on placeholder description", ruleID: "LC-021",
+		kind: models.KindLangChainTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@langchain/core/tools\";\n" +
+			"export const t = tool(async () => \"x\", { name: \"lookup_order\", description: \"TODO: describe this tool.\", schema: {} });\n",
+	},
+	{
+		name: "LC-021 silent on a real description", ruleID: "LC-021",
+		kind: models.KindLangChainTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@langchain/core/tools\";\n" +
+			"export const t = tool(async () => \"x\", { name: \"lookup_order\", description: \"Look up one order by its number and return its fulfillment status.\", schema: {} });\n",
+	},
+	{
+		name: "LC-022 fires on a too-short description", ruleID: "LC-022",
+		kind: models.KindLangChainTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@langchain/core/tools\";\n" +
+			"export const t = tool(async () => \"x\", { name: \"list_orders\", description: \"Gets data.\", schema: {} });\n",
+	},
+	{
+		name: "LC-022 silent on a full description", ruleID: "LC-022",
+		kind: models.KindLangChainTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@langchain/core/tools\";\n" +
+			"export const t = tool(async () => \"x\", { name: \"list_orders\", description: \"List every order belonging to one customer, most recent first.\", schema: {} });\n",
+	},
+	{
+		name: "LC-022 silent when the description is absent (LC-010's case)", ruleID: "LC-022",
+		kind: models.KindLangChainTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@langchain/core/tools\";\n" +
+			"export const t = tool(async () => \"x\", { name: \"list_orders\", schema: {} });\n",
+	},
+
+	// ─── MCP-029: TS MCP tool writes to the filesystem ──────────────────────
+	// Coarse has_write_call signal, mirroring CSDK-012 until TS path
+	// normalization analysis exists.
+	{
+		name: "MCP-029 fires on filesystem write", ruleID: "MCP-029",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"import { writeFileSync } from \"node:fs\";\n" +
+			"const s = new McpServer({ name: \"notes\", version: \"1.0.0\" });\n" +
+			"s.tool(\"save_note\", \"Save a note to disk for later retrieval.\", {}, async ({ p, body }) => {\n" +
+			"  writeFileSync(p, body);\n" +
+			"  return { content: [] };\n" +
+			"});\n",
+	},
+	{
+		name: "MCP-029 silent with no filesystem write", ruleID: "MCP-029",
+		kind: models.KindMCPTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n" +
+			"const notes = new Map<string, string>();\n" +
+			"const s = new McpServer({ name: \"notes\", version: \"1.0.0\" });\n" +
+			"s.tool(\"save_note\", \"Save a note to disk for later retrieval.\", {}, async ({ body }) => {\n" +
+			"  notes.set(\"n1\", body);\n" +
+			"  return { content: [] };\n" +
+			"});\n",
+	},
+
+	// ─── OAI-029: TS OpenAI Agents tool writes to the filesystem ────────────
+	{
+		name: "OAI-029 fires on filesystem write", ruleID: "OAI-029",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"import { writeFileSync } from \"node:fs\";\n" +
+			"export const t = tool({ name: \"save_note\", description: \"Save a note to disk for later retrieval.\", parameters: {}, execute: async ({ p, body }) => {\n" +
+			"  writeFileSync(p, body);\n" +
+			"  return \"saved\";\n" +
+			"} });\n",
+	},
+	{
+		name: "OAI-029 silent with no filesystem write", ruleID: "OAI-029",
+		kind: models.KindOpenAITool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { tool } from \"@openai/agents\";\n" +
+			"const notes = new Map<string, string>();\n" +
+			"export const t = tool({ name: \"save_note\", description: \"Save a note to disk for later retrieval.\", parameters: {}, execute: async ({ body }) => {\n" +
+			"  notes.set(\"n1\", body);\n" +
+			"  return \"n1\";\n" +
+			"} });\n",
+	},
+
+	// ─── ADK-117: TS ADK FunctionTool writes to the filesystem ──────────────
+	{
+		name: "ADK-117 fires on filesystem write", ruleID: "ADK-117",
+		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: true,
+		src: "import { FunctionTool } from \"@google/adk\";\n" +
+			"import { writeFileSync } from \"node:fs\";\n" +
+			"const t = new FunctionTool({ name: \"save_note\", description: \"Save a note to disk for later retrieval.\", parameters: {}, execute: async ({ p, body }) => {\n" +
+			"  writeFileSync(p, body);\n" +
+			"  return \"saved\";\n" +
+			"} });\n",
+	},
+	{
+		name: "ADK-117 silent with no filesystem write", ruleID: "ADK-117",
+		kind: models.KindADKFunctionTool, lang: models.LanguageTypeScript, wantFires: false,
+		src: "import { FunctionTool } from \"@google/adk\";\n" +
+			"const notes = new Map<string, string>();\n" +
+			"const t = new FunctionTool({ name: \"save_note\", description: \"Save a note to disk for later retrieval.\", parameters: {}, execute: async ({ body }) => {\n" +
+			"  notes.set(\"n1\", body);\n" +
+			"  return \"n1\";\n" +
+			"} });\n",
+	},
+
+	{name: "LC-024 fires on a generic tool name", ruleID: "LC-024", kind: models.KindLangChainTool, src: `
+def process(payload: str) -> str:
+    """Handle an incoming payload and return the result of handling it."""
+    return payload
+`, wantFires: true},
+	{name: "LC-024 silent on a verb-object tool name", ruleID: "LC-024", kind: models.KindLangChainTool, src: `
+def summarize_invoice(invoice_id: str) -> str:
+    """Summarize one invoice by its identifier and return the summary text."""
+    return invoice_id
+`, wantFires: false},
+	{name: "LC-024 silent on a name merely containing a listed word", ruleID: "LC-024", kind: models.KindLangChainTool, src: `
+def process_invoice_batch(batch_id: str) -> str:
+    """Process one batch of invoices and return a per-invoice result summary."""
+    return batch_id
+`, wantFires: false},
+
+	{name: "CREW-013 fires on a generic tool name", ruleID: "CREW-013", kind: models.KindCrewAITool, src: `
+def process(payload: str) -> str:
+    """Handle an incoming payload and return the result of handling it."""
+    return payload
+`, wantFires: true},
+	{name: "CREW-013 silent on a verb-object tool name", ruleID: "CREW-013", kind: models.KindCrewAITool, src: `
+def summarize_invoice(invoice_id: str) -> str:
+    """Summarize one invoice by its identifier and return the summary text."""
+    return invoice_id
+`, wantFires: false},
+	{name: "CREW-013 silent on a name merely containing a listed word", ruleID: "CREW-013", kind: models.KindCrewAITool, src: `
+def process_invoice_batch(batch_id: str) -> str:
+    """Process one batch of invoices and return a per-invoice result summary."""
+    return batch_id
+`, wantFires: false},
+
+	{name: "AG2-019 fires on a generic tool name", ruleID: "AG2-019", kind: models.KindAutoGenTool, src: `
+def process(payload: str) -> str:
+    """Handle an incoming payload and return the result of handling it."""
+    return payload
+`, wantFires: true},
+	{name: "AG2-019 silent on a verb-object tool name", ruleID: "AG2-019", kind: models.KindAutoGenTool, src: `
+def summarize_invoice(invoice_id: str) -> str:
+    """Summarize one invoice by its identifier and return the summary text."""
+    return invoice_id
+`, wantFires: false},
+	{name: "AG2-019 silent on a name merely containing a listed word", ruleID: "AG2-019", kind: models.KindAutoGenTool, src: `
+def process_invoice_batch(batch_id: str) -> str:
+    """Process one batch of invoices and return a per-invoice result summary."""
+    return batch_id
+`, wantFires: false},
+
+	{name: "PYD-013 fires on a generic tool name", ruleID: "PYD-013", kind: models.KindPydanticAITool, src: `
+def process(payload: str) -> str:
+    """Handle an incoming payload and return the result of handling it."""
+    return payload
+`, wantFires: true},
+	{name: "PYD-013 silent on a verb-object tool name", ruleID: "PYD-013", kind: models.KindPydanticAITool, src: `
+def summarize_invoice(invoice_id: str) -> str:
+    """Summarize one invoice by its identifier and return the summary text."""
+    return invoice_id
+`, wantFires: false},
+	{name: "PYD-013 silent on a name merely containing a listed word", ruleID: "PYD-013", kind: models.KindPydanticAITool, src: `
+def process_invoice_batch(batch_id: str) -> str:
+    """Process one batch of invoices and return a per-invoice result summary."""
+    return batch_id
+`, wantFires: false},
 }
 
 // policyRepoRuleCases covers repo-scoped rules.
