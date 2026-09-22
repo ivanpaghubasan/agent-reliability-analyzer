@@ -515,6 +515,13 @@ For each language recon cleared, do the AST work and produce a `RepoInventory`:
   reads, and any file for a committed secret literal (an AWS/GitHub/Slack/Google
   token or a private-key header) — the payload-in-aux-file surface that scanning
   `SKILL.md` alone misses. No frontmatter or no `name` → skipped.
+  CSKILL-080/081 (claimed crypto operations / sensitive-data handling) use
+  `skill_text_matches`, not the raw-substring `skill_*_has_text` family — a
+  sentence-scoped, word-boundary predicate added to fix confirmed false
+  positives a bare substring match produces (a term inside an unrelated word,
+  or a data class merely being *named* rather than actually handled).
+  CSKILL-082..087 still use the raw-substring predicates unmodified. See
+  `PredSkillTextMatches` in `internal/rules/predicates.go`.
 - **DiscoverDependencies** (`deps.go`) — walks the repo (skipping vendored /
   installed trees: `node_modules`, `vendor`, `.venv`, `target`, …) for the
   primary dependency manifest of each supported language and parses the DECLARED
@@ -593,15 +600,30 @@ For each language recon cleared, do the AST work and produce a `RepoInventory`:
   `ClaudeAgentOptions(...)` construction in parsed Python and captures its
   constructor kwargs into a `ClaudeAgentOptionsDef` (carried on
   `RepoInventory.ClaudeAgentOptions`). This is the claude-agent-sdk session
-  config object; its `permission_mode` is the in-code analogue of
-  settings.json `defaultMode`, read by `repo_claude_options_permission_mode_is`
-  (CSDK-202). `max_turns` and `disallowed_tools` absence are both read via the
-  shared `repoClaudeOptionsMissingKwarg` helper — `repo_claude_options_max_turns_missing`
-  (CSDK-204) and `repo_claude_options_disallowed_tools_missing`, the latter
-  combined with a permissive `permission_mode` for CSDK-205. All kwargs are
-  captured generically onto `Kwargs`, so no discovery change was needed to add
-  the `disallowed_tools` reader. Its presence also marks the repo
-  `claude_agent_sdk` so the pack loads for options-only repos.
+  config object. `max_turns` absence is read via the shared
+  `repoClaudeOptionsMissingKwarg` helper — `repo_claude_options_max_turns_missing`
+  (CSDK-204). `repo_claude_options_disallowed_tools_missing` is the same
+  helper's `disallowed_tools` reader, combined with a permissive
+  `permission_mode` for CSDK-205. All kwargs are captured generically onto
+  `Kwargs`, so no discovery change was needed to add the `disallowed_tools`
+  reader. Its presence also marks the repo `claude_agent_sdk` so the pack
+  loads for options-only repos.
+  `permission_mode` set to `bypassPermissions` is read at the SAME
+  construction site as `disallowed_tools` by
+  `repo_claude_options_mode_without_kwarg` (`PredRepoClaudeOptionsModeWithoutKwarg`)
+  — CSDK-202 fires when a `bypassPermissions` site has no deny-list at that
+  site, CSDK-206 fires (lower severity) when it does. This per-site
+  correlation exists because `allowed_tools` does NOT restrict which tools
+  can run (it only auto-approves — see the Agent SDK reference), so an
+  empty/narrow `allowed_tools` alongside `bypassPermissions` is the
+  maximally dangerous shape, not a mitigated one; only an explicit
+  `disallowed_tools` deny-list (which denies in every permission mode,
+  including `bypassPermissions`) genuinely bounds the surface. See
+  `docs/decisions/tool-allowlist-scope.md`. The bare repo-wide
+  `repo_claude_options_permission_mode_is` predicate (reading `permission_mode`
+  across every construction independently, with no per-site kwarg
+  correlation) is still used, combined with the new correlated predicate
+  under a `not:`, inside CSDK-206's `match:`.
 - **DiscoverAgentRunCalls** (`agent_run_calls.go`) — captures execution-limit
   kwargs that live on the *run call*, not the agent constructor. OpenAI
   Agents SDK: `Runner.run` / `run_sync` / `run_streamed` (object segment
@@ -1081,7 +1103,7 @@ Shipped rules (one row per YAML rule entry):
 | CSDK-009 | tool     | claude_sdk | high     | `claude_sdk/ssrf.yaml`             | Tool fetches a caller-controlled URL (SSRF)                                           |
 | CSDK-101 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | Claude subagent is granted the Bash tool                                              |
 | CSDK-102 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | Claude subagent is granted the WebSearch tool                                         |
-| CSDK-103 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | AgentDefinition sets permissionMode to bypassPermissions                              |
+| CSDK-103 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | AgentDefinition sets permissionMode to bypassPermissions with a broad tool set |
 | CSDK-104 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | Claude subagent is granted filesystem-write built-ins                                 |
 | CSDK-105 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | Claude subagent is granted the WebFetch tool                                          |
 | CSDK-107 | tool     | claude_sdk | high     | `claude_sdk/code_execution.yaml`   | Tool body calls eval/exec/compile on dynamic input                                    |
@@ -1089,15 +1111,16 @@ Shipped rules (one row per YAML rule entry):
 | CSDK-110 | subagent | claude_sdk | high     | `claude_sdk/subagent_safety.yaml`  | Subagent granted the built-in Bash tool                                               |
 | CSDK-111 | subagent | claude_sdk | high     | `claude_sdk/subagent_safety.yaml`  | Subagent granted filesystem-write or web-fetch built-ins                              |
 | CSDK-201 | repo     | claude_sdk | high     | `claude_sdk/repo.yaml`             | Project default permission mode bypasses approvals                                    |
-| CSDK-202 | repo     | claude_sdk | high     | `claude_sdk/repo.yaml`             | Session permission mode bypasses approvals                                            |
+| CSDK-202 | repo     | claude_sdk | high     | `claude_sdk/repo.yaml`             | Session permission mode bypasses approvals with no tool deny-list |
 | CSDK-203 | repo     | claude_sdk | low      | `claude_sdk/repo_hygiene.yaml`     | Claude Agent SDK code with no agent-guidance doc (AGENTS.md/CLAUDE.md)                |
 | CSDK-204 | repo     | claude_sdk | low      | `claude_sdk/repo.yaml`             | Claude Agent SDK session sets no explicit max_turns limit                             |
 | CSDK-205 | repo     | claude_sdk | medium   | `claude_sdk/repo.yaml`             | Claude Agent SDK session auto-approves edits with no tool deny-list                   |
+| CSDK-206 | repo     | claude_sdk | medium   | `claude_sdk/repo.yaml`             | Session bypasses approvals with a deny-list that still leaves a broad surface         |
 | CSDK-010 | tool     | claude_sdk | high     | `claude_sdk/shell_safety.yaml`     | TypeScript tool body spawns a subprocess (`language: typescript`)                     |
 | CSDK-011 | tool     | claude_sdk | high     | `claude_sdk/code_execution.yaml`   | TypeScript tool body calls eval / new Function on dynamic input                       |
 | CSDK-012 | tool     | claude_sdk | high     | `claude_sdk/path_safety.yaml`      | TypeScript tool writes to the filesystem                                               |
 | CSDK-013 | tool     | claude_sdk | high     | `claude_sdk/ssrf.yaml`             | TypeScript tool fetches a caller-controlled URL (SSRF / dynamic URL)                  |
-| CSDK-120 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | TypeScript AgentDefinition sets permissionMode to bypassPermissions                   |
+| CSDK-120 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | TypeScript AgentDefinition sets permissionMode to bypassPermissions with a broad tool set |
 | CSDK-014 | tool     | claude_sdk | low      | `claude_sdk/tool_definition.yaml`  | TypeScript Claude SDK tool has no description                                         |
 | CSDK-016 | tool     | claude_sdk | medium   | `claude_sdk/idempotency.yaml`      | TypeScript Claude SDK mutating tool has no idempotency key                            |
 | CSDK-130 | agent    | claude_sdk | high     | `claude_sdk/agent_safety.yaml`     | TypeScript query() main agent is granted the Bash tool                                |
