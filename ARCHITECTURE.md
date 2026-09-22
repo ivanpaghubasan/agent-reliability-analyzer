@@ -1223,6 +1223,21 @@ Shipped rules (one row per YAML rule entry):
 > category allow-list (`internal/rules/loader.go`); `SDKMCP` already routed to
 > the `mcp` category via `LoadFor`, so no other wiring changed.
 
+### Step 4c — Origin classification ([internal/pathclass/](internal/pathclass/))
+
+After every finding is assembled (rule findings, META, and — when opted in —
+vuln/license/secret findings), one pass over `findings` sets
+`Finding.Origin = pathclass.Classify(finding.FilePath)`. `Classify` is a pure
+function of the already-normalized, forward-slash repo-relative path (dir
+segments like `tests/`, `__tests__/`, `fixtures/`; filename patterns like
+`test_*.py`, `*_test.go`, `*.spec.ts`) — no AST, no I/O, so it never touches
+`ScanManifest` and `ScanID` is unaffected. The zero value (`""`) is production;
+`models.OriginTest` marks a test-path finding. This closes the "a `WebSearchTool`
+in `tests/test_adapter.py` reads identically to one shipped in production"
+gap: the finding is still reported (never dropped), but is excluded from
+scoring by default (Step 5) and from the CLI exit-code gate
+(`cmd/trustabl`'s `exitCode`), unless `--include-test-paths` is set.
+
 ### Step 5 — Scoring ([internal/analysis/scoring.go](internal/analysis/scoring.go))
 
 Scoring works per **surface**, where a surface is a single discovered tool,
@@ -1232,6 +1247,22 @@ the surface's `FilePath`, so they attribute to the right row. Each finding
 carries its `Scope` (stamped at emit time), which routes it to its surface; all
 repo-scoped findings pool into one repo surface, created only when at least one
 repo finding exists. Findings with an empty scope (META) are not scored.
+
+By default (`--include-test-paths` not set), `scanner.Run` partitions the
+discovered tools/agents/subagents/skills and the findings list before calling
+`Score`/`Project`, dropping anything whose `FilePath` classifies as
+`models.OriginTest` (Step 4c). `Score`'s signature is unchanged — it still
+takes the four slices explicitly (architecture principle: stay honest about
+what scoring depends on) — the filtering happens at the call site. A
+test-fixture agent therefore creates no surface row and its findings do not
+move `OverallScore`; `ScanResult.Tools`/`.Agents`/`.Findings` stay complete
+regardless, since the classification changes what is *scored*, never what is
+*reported*. `NoAgentSurfaces` is computed from the same production-filtered
+`surfaces` slice as before (`len(surfaces) == 0`) — note that a repo-scoped
+finding (e.g. "uses default tracing") still seeds the repo surface even when
+the SDK usage that triggered it lives only in a test path, since a repo-scoped
+finding's `FilePath` is empty and classifies as production; that repo-level
+risk is genuinely about the whole project, not a specific file.
 
 Per-surface:
 
@@ -1270,7 +1301,12 @@ anything into the scanned repo.
 
 - `Renderer.Render` ([diff.go](internal/review/diff.go)) — produces the human
   scan summary printed to stdout for `--format human`: per-surface readiness, the
-  overall score, the discovered inventory, and the findings list. Color via
+  overall score, the discovered inventory, and the findings list. A finding
+  whose `Origin` is `models.OriginTest` (Step 4c) is excluded from the scored
+  "Findings" groups — those mirror `result.Surfaces`, already production-only
+  — and rendered instead under a trailing "Test-path findings (not scored)"
+  section, so it stays visible without looking equivalent to a production
+  finding. Color via
   lipgloss, disabled with `--no-color`. When `ScanResult.HasShellInvocations`
   is true the summary prints a `Risk surfaces: openshell` block: the count of
   shell-invoking functions, the first three file:line locations
@@ -1301,7 +1337,11 @@ per-result `fixes[]`**, because the SARIF spec requires a `fix` to carry
 described-but-patchless result is both honest and accepted by the Code Scanning
 schema validator, which rejects a `fixes[]` entry lacking `artifactChanges`. Like
 JSON, SARIF is a pure function of `ScanResult`: no clocks, no map-iteration
-leakage, byte-stable per `ScanID`.
+leakage, byte-stable per `ScanID`. A finding with `Origin == models.OriginTest`
+additionally carries `properties.origin: "test"` and a `result.suppressions`
+entry (`kind: "external"`) so GitHub code scanning and other SARIF 2.1.0-aware
+consumers exclude it from the default alert view without the document ever
+dropping the result.
 
 ### Scan attestation (`internal/attest`)
 
@@ -1398,6 +1438,7 @@ classDiagram
         Confidence
         Explanation
         SuggestedFix
+        Origin : SurfaceOrigin
     }
     class ScanManifest {
         RepoRoot
@@ -1739,6 +1780,9 @@ internal/
 │   └── tty.go                   bubbletea model + TTYReporter (interactive).
 ├── logx/                        Leveled --verbose/--debug diagnostics (stderr-only,
 │                                nil-safe, leaf package).
+├── pathclass/                   Test-path classification (Classify(relPath) →
+│                                models.SurfaceOrigin). Pure function, no AST, no
+│                                I/O, leaf package. See architecture §2 Step 4c.
 ├── analysis/
 │   ├── astutil/                 Tiny tree-sitter ergonomic layer (NodeText,
 │   │                            Walk, FindAll, FunctionName, FunctionParams,
@@ -2127,7 +2171,7 @@ trustabl scan <target> [--detectors=…] [--format=human|json|sarif]
                        [--json-out=FILE] [--sarif-out=FILE] [--bom-out=FILE]
                        [--strict] [--no-color] [--no-progress]
                        [--rules-repo=URL] [--rules-ref=REF] [--channel=NAME]
-                       [--no-rules-update] [--vuln-scan]
+                       [--no-rules-update] [--vuln-scan] [--include-test-paths]
 trustabl forge [target] [--policy=CATEGORY,…] [--output=PATH|-o PATH]
                         [--rules-ref=REF]
 trustabl enrich        [-i SCAN_JSON] [-r REPO_ROOT] [-o OUTPUT_FILE]
@@ -2156,7 +2200,11 @@ snapshot and emits CVE/GHSA findings (see §2 — Vulnerability matching);
 `--bom-out=FILE` writes a CycloneDX BOM. `--output`/`-o` writes the report to a
 file instead of stdout (the report is rendered before the file is opened, so
 it is written even when findings raise a nonzero exit code, which is what lets
-a code-scanning workflow upload the SARIF on `if: always()`).
+a code-scanning workflow upload the SARIF on `if: always()`). `--include-test-paths`
+opts a test-path finding (`Finding.Origin == models.OriginTest`; see §2 — Step
+4c) back into `Surfaces`/`OverallScore` and the exit-code gate; by default such
+a finding is still reported in every format, just excluded from scoring and
+from failing the build (see internal/pathclass).
 `trustabl rules pull` downloads the rule packs into the cache without
 scanning. See §2 — Rule resolution. `trustabl capabilities` prints this
 build's rule-evaluation vocabulary (the scopes, predicates, and `applies_to`
